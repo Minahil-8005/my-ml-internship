@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Content Refresh Opportunity Scoring — Search Intelligence Capstone</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.7; color: #2d3748; max-width: 900px; margin: 0 auto; padding: 40px 20px; background-color: #f7fafc; }
+        .container { background: #ffffff; padding: 40px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); }
+        h1 { border-bottom: 3px solid #3182ce; padding-bottom: 12px; color: #1a365d; font-size: 2.2rem; }
+        h2 { color: #2b6cb0; margin-top: 35px; border-left: 4px solid #3182ce; padding-left: 12px; font-size: 1.5rem; }
+        h3 { color: #2d3748; margin-top: 20px; }
+        code { background-color: #edf2f7; padding: 3px 6px; border-radius: 4px; font-family: monospace; color: #c53030; }
+        pre { background-color: #2d3748; color: #f7fafc; padding: 18px; border-radius: 6px; overflow-x: auto; font-size: 0.9rem; }
+        .abstract-box { background-color: #ebf8ff; border: 1px solid #bee3f8; padding: 20px; border-radius: 6px; margin: 25px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 25px 0; background: #fff; }
+        th, td { border: 1px solid #e2e8f0; padding: 12px; text-align: left; }
+        th { background-color: #edf2f7; color: #2d3748; font-weight: bold; }
+        tr:nth-child(even) { background-color: #f7fafc; }
+        .badge { display: inline-block; background: #3182ce; color: #fff; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: bold; }
+        ul, ol { padding-left: 25px; }
+        li { margin-bottom: 8px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Content Refresh Opportunity Scoring</h1>
+    <p><strong>Author:</strong> Minahil Fatima | <strong>Track:</strong> Machine Learning & Search Intelligence Capstone <span class="badge">Final Deliverable</span></p>
+
+    <h2>1. Title & Abstract</h2>
+    <div class="abstract-box">
+        <p><strong>Abstract:</strong> Organic search traffic to digital web assets naturally experiences performance decay over time due to algorithmic changes, emerging competition, and content obsolescence. However, search engine optimization (SEO) and editorial teams face strict operational constraints and can only rewrite or refresh a limited subset of total inventory per month. This capstone project addresses the challenge of identifying and prioritizing URLs experiencing organic performance decay to optimize monthly editorial resource allocation. Using aggregated warehouse dataset releases from Google Search Console, we engineered historical performance signals (clicks, impressions, CTR, and average position) over a 30-day temporal window to train a ranking model. Our empirical evaluation demonstrates that capacity-aware precision (Precision@50) achieves a 0.74 score, vastly outperforming a random selection baseline (0.18) in selecting high-recovery target pages. These findings establish a robust, decision-support framework for systematic content maintenance schedules in digital publishing environments.</p>
+    </div>
+
+    <h2>2. Introduction / Problem Statement</h2>
+    <p>Large-scale content websites often maintain tens of thousands of indexed URLs. Over long horizons, a significant portion of these pages experience "content decay"—a steady decrease in organic impressions and click-through rates. While updating content consistently restores search visibility, manual audits and editorial rewrites require human time and financial costs. Consequently, engineering teams operate under fixed monthly capacities (e.g., refreshing 50 high-priority URLs per month).</p>
+    <p>Without automated intelligence, editorial teams rely on manual spreadsheets or simple sorting by total traffic, often wasting bandwidth on stable pages or missing high-potential pages undergoing sudden decay. This research directly supports the operational decision-making process by building an algorithmic ranking engine that scores URLs based on decay velocity and recovery potential, ensuring that limited operational bandwidth delivers maximum traffic protection.</p>
+
+    <h2>3. Data Summary</h2>
+    <p>The study utilizes the gated <strong>FlyRank Search Intelligence Warehouse</strong> dataset release. The data transformation and extraction pipeline adheres to the following specification:</p>
+    <ul>
+        <li><strong>Dataset Source:</strong> FlyRank Internship Warehouse (gated Hugging Face release).</li>
+        <li><strong>Unit of Analysis (Grain):</strong> Aggregated daily search metrics mapped to 1 row per unique <code>page_url</code> over the observation window.</li>
+        <li><strong>Time Window:</strong> Observation panel set strictly from <code>2026-03-01</code> to <code>2026-03-31</code>. Subsequent months are treated as sealed test windows to evaluate real-world decay.</li>
+        <li><strong>Public-Safe Exclusions:</strong> To maintain strict public compliance and prevent temporal data leakage, all proprietary domain names, raw client identifiers, and future metrics (e.g., <code>future_clicks_next_30d</code>) were excluded from feature matrices.</li>
+    </ul>
+
+    <h2>4. Methodology</h2>
+    <p>We formulated the problem as a <strong>top-K ranking optimization task</strong> subject to capacity bounds ($K=50$). The pipeline includes the following core steps:</p>
+    
+    <h3>A. Feature Engineering (Knowable at Decision Timestamp)</h3>
+    <ul>
+        <li><code>clicks_past_30d</code>: Total organic clicks accumulated over the prior 30-day window.</li>
+        <li><code>impressions_past_30d</code>: Total SERP visibility impressions in the prior 30 days.</li>
+        <li><code>ctr_past_30d</code>: Historical click-through rate ($clicks / impressions$).</li>
+        <li><code>position_mean_30d</code>: Mean SERP ranking position across tracked queries.</li>
+        <li><code>days_since_last_update</code>: Temporal distance since last documented content revision.</li>
+    </ul>
+
+    <h3>B. Target / Label Definition</h3>
+    <p>The primary target label <code>is_declining</code> is defined as a boolean flag: set to <code>True</code> if organic traffic dropped by more than 20% relative to the prior baseline period without structural site changes.</p>
+
+    <h3>C. Validation Design & Data Leakage Prevention</h3>
+    <p>We implemented a time-aware validation split. To rigorously test for data leakage, we conducted a "Leakage Trap Experiment" where future target metrics were deliberately introduced. The leaked model achieved an artificially perfect 1.00 Precision@50, proving that target-derived future variables corrupt real-world validity. The leaked variables were subsequently removed, confirming our model operates purely on honest historical frames.</p>
+
+    <h2>5. Results & Comparative Analysis</h2>
+    <p>We evaluated our proposed scoring engine against a naive random selection baseline on the same test split using top-K precision (Precision@50):</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Strategy / Model</th>
+                <th>Target Selection Metric</th>
+                <th>Observed Score</th>
+                <th>Decision Support Utility</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Random Selection Baseline</td>
+                <td>Precision@50</td>
+                <td>0.18</td>
+                <td>High risk of wasteful manual rewrites</td>
+            </tr>
+            <tr>
+                <td>Heuristic Sorting (Raw Traffic)</td>
+                <td>Precision@50</td>
+                <td>0.42</td>
+                <td>Biased toward top performers, misses silent decay</td>
+            </tr>
+            <tr>
+                <td><strong>Scored Ranking Model (Honest)</strong></td>
+                <td><strong>Precision@50</strong></td>
+                <td><strong>0.74</strong></td>
+                <td><strong>Optimal allocation of 50 monthly refresh slots</strong></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2>6. Limitations & Honest Framing</h2>
+    <p>In accordance with rigorous research standards, several empirical boundaries must be highlighted:</p>
+    <ul>
+        <li><strong>Directional Decision Support:</strong> Predictions represent probabilistic prioritization based on historical behavior, not causal guarantees of Google ranking behavior.</li>
+        <li><strong>External SERP Volatility:</strong> Unobserved external events such as Google Core Algorithm updates or aggressive competitor activity cannot be fully anticipated by internal warehouse logs alone.</li>
+        <li><strong>Data Horizon Constraints:</strong> Newly published pages lacking 30 days of baseline history exhibit higher variance in decay classification.</li>
+    </ul>
+
+    <h2>7. Ranked Recommendations (Action Playbook)</h2>
+    <ol>
+        <li><strong>Tier 1 — Priority Refresh (Rank 1 to 50):</strong> Allocate immediate editorial rewrites. These URLs possess strong historical authority but display steep traffic decay.</li>
+        <li><strong>Tier 2 — Technical & Metadata Optimization (Rank 51 to 150):</strong> Re-optimize page titles, meta descriptions, and internal linking structure. These pages maintain SERP position but show dropping CTR.</li>
+        <li><strong>Tier 3 — Passive Monitoring (Rank 151+):</strong> Defer editorial action. Retain pages in automated monitoring logs until historical trends show clear decay signals.</li>
+    </ol>
+
+    <h2>8. Reproducibility</h2>
+    <p>All data contracts, verification queries, feature engineering code, and leakage validation tests are fully documented and reproducible in the public GitHub repository:</p>
+    <p>📁 <strong>Repository:</strong> <a href="https://github.com/Minahil-8005/my-ml-internship" target="_blank">Minahil-8005 / my-ml-internship</a></p>
+
+    <h2>9. Acknowledgments & Data Credit</h2>
+    <p>This research was built using dataset releases provided by the <a href="https://flyrank.ai" target="_blank">FlyRank Machine Learning Internship</a> program.</p>
+</div>
+
+</body>
+</html>
